@@ -4,9 +4,9 @@ resource "aws_vpc" "main" {
   enable_dns_support   = true
   tags = {
     Name                                                 = "${var.name}-vpc"
-    Owner                                                = "Informatics"
     Environment                                          = "Dev"
-    "kubernetes.io/cluster/${var.name}-knte-k8s-cluster" = "shared"
+    Project                                              = "rch-preludetx"
+    "kubernetes.io/cluster/${var.name}-k8s-cluster"      = "shared"
   }
 }
 
@@ -15,9 +15,12 @@ resource "aws_subnet" "public_subnets" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = element(var.public_subnet_cidrs, count.index)
   availability_zone = element(var.azs, count.index)
+  map_public_ip_on_launch = true  # Important for public subnets
   tags = {
-    Name        = "${var.name}-public-subnet-${count.index + 1}"
-    Environment = "sandbox"
+    Name                                            = "${var.name}-public-subnet-${count.index + 1}"
+    Environment                                     = "sandbox"
+    "kubernetes.io/cluster/${var.name}-k8s-cluster" = "shared"
+    "kubernetes.io/role/elb"                        = "1"  # For EXTERNAL/internet-facing load balancers
   }
 }
 
@@ -29,7 +32,7 @@ resource "aws_subnet" "private_subnets" {
   tags = {
     Name                                                 = "${var.name}-private-subnet-${count.index + 1}"
     Environment                                          = "sandbox"
-    "kubernetes.io/cluster/${var.name}-knte-k8s-cluster" = "shared"
+    "kubernetes.io/cluster/${var.name}-k8s-cluster"      = "shared"
     "kubernetes.io/role/internal-elb"                    = "1"
   }
 }
@@ -81,16 +84,15 @@ resource "aws_route_table_association" "public_subnet_asso" {
 }
 
 resource "aws_eip" "nat_eip" {
-  count      = length(var.private_subnet_cidrs)
   domain     = "vpc"
   depends_on = [aws_internet_gateway.igw]
   tags = {
-    Name = "${var.name}-nat-eip-${count.index + 1}"
+    Name = "${var.name}-nat-eip"
   }
 }
 
 resource "aws_nat_gateway" "nat_gateway" {
-  allocation_id = aws_eip.nat_eip[0].id
+  allocation_id = aws_eip.nat_eip.id
   subnet_id     = aws_subnet.public_subnets[0].id
   depends_on    = [aws_internet_gateway.igw]
   tags = {

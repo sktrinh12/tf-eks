@@ -1,6 +1,6 @@
 variable "region" {
   type    = string
-  default = "us-west-2"
+  default = "us-east-1"
 }
 
 variable "desired_size" {
@@ -20,38 +20,45 @@ variable "max_size" {
 
 variable "aws_profile" {
   type    = string
-  default = "spsandbox"
+  default = "rchsandbox"
 }
 
 variable "name" {
   type    = string
-  default = "sandbox"
+  default = "preludetx-sandbox"
 }
 
 variable "k8s_version" {
   type    = string
-  default = "1.23"
+  default = "1.34"
 }
 
-variable "instance_type" {
-  type    = string
-  default = "t2.micro"
+variable "instance_types" {
+  type        = list(string)
+  description = "List of instance types for node group"
+  default     = ["t3.small", "t3a.small", "t2.small"]
 }
 
 variable "public_subnet_cidrs" {
   type        = list(string)
   description = "Public Subnet CIDR values"
-  default     = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
+  default     = ["10.0.0.0/24", "10.0.1.0/24", "10.0.2.0/24"]
 }
 
 variable "private_subnet_cidrs" {
   type        = list(string)
   description = "Private Subnet CIDR values"
-  default     = ["10.0.4.0/24", "10.0.5.0/24", "10.0.6.0/24"]
+  default     = ["10.0.10.0/23", "10.0.12.0/23", "10.0.14.0/23"]
 }
 
 variable "azs" {
   type        = list(string)
   description = "Availability Zones"
-  default     = ["us-west-2a", "us-west-2b", "us-west-2c"]
+  default     = ["us-east-1a", "us-east-1b"]
+}
+
+variable "ec2_ssh_key" {
+  type        = string
+  description = "EC2 SSH key pair name that already exists"
+  default     = "strinh"
 }
