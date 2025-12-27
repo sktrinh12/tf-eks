@@ -48,7 +48,7 @@ resource "aws_iam_role" "nodes_eks" {
       "Effect": "Allow",
       "Principal": {
         "Service": "ec2.amazonaws.com"
-      }, 
+      },
       "Action": "sts:AssumeRole"
     }
   ]
@@ -176,6 +176,106 @@ resource "aws_iam_role" "aws_load_balancer_controller" {
     ]
   })
 }
+
+###
+
+# IAM Role for EFS CSI Driver
+resource "aws_iam_role" "efs_csi_driver" {
+  name = "AmazonEKS_EFS_CSI_DriverRole"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Federated = aws_iam_openid_connect_provider.eks.arn
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "${replace(aws_iam_openid_connect_provider.eks.url, "https://", "")}:aud" = "sts.amazonaws.com"
+            "${replace(aws_iam_openid_connect_provider.eks.url, "https://", "")}:sub" = "system:serviceaccount:kube-system:efs-csi-controller-sa"
+          }
+        }
+      }
+    ]
+  })
+}
+
+# IAM Policy for EFS CSI Driver
+resource "aws_iam_policy" "efs_csi_driver" {
+  name = "AmazonEKS_EFS_CSI_Driver_Policy"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "elasticfilesystem:DescribeAccessPoints",
+          "elasticfilesystem:DescribeFileSystems",
+          "elasticfilesystem:DescribeMountTargets",
+          "elasticfilesystem:CreateAccessPoint",
+          "elasticfilesystem:DeleteAccessPoint",
+          "ec2:DescribeAvailabilityZones",
+          "elasticfilesystem:TagResource"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# Attach policy to EFS role
+resource "aws_iam_role_policy_attachment" "efs_csi_driver" {
+  policy_arn = aws_iam_policy.efs_csi_driver.arn
+  role       = aws_iam_role.efs_csi_driver.name
+}
+
+# EFS File System
+resource "aws_efs_file_system" "nextflow" {
+  creation_token = "nextflow-efs"
+  encrypted      = true
+
+  performance_mode = "generalPurpose"
+  throughput_mode  = "bursting"
+
+  tags = {
+    Name = "nextflow-efs"
+  }
+}
+
+# EFS Mount Targets (one per subnet)
+resource "aws_efs_mount_target" "nextflow" {
+  for_each = toset(distinct([for s in aws_subnet.public_subnets : s.availability_zone]))
+
+  file_system_id  = aws_efs_file_system.nextflow.id
+  subnet_id       = [for s in aws_subnet.public_subnets : s.id if s.availability_zone == each.key][0]
+  security_groups = [aws_security_group.efs.id]
+}
+
+# Security Group for EFS
+resource "aws_security_group" "efs" {
+  name_prefix = "efs-nextflow-"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    from_port   = 2049
+    to_port     = 2049
+    protocol    = "tcp"
+    cidr_blocks = [aws_vpc.main.cidr_block]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+###
 
 resource "aws_iam_role_policy_attachment" "aws_load_balancer_controller" {
   role       = aws_iam_role.aws_load_balancer_controller.name
