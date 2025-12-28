@@ -247,6 +247,7 @@ resource "aws_efs_file_system" "nextflow" {
 }
 
 # EFS Mount Targets (one per subnet)
+# For each AZ, create one EFS mount target, using any subnet in that AZ.
 resource "aws_efs_mount_target" "nextflow" {
   for_each = toset(distinct([for s in aws_subnet.public_subnets : s.availability_zone]))
 
@@ -321,9 +322,9 @@ resource "aws_eks_node_group" "nodes_eks" {
   ami_type       = "AL2023_x86_64_STANDARD"
   capacity_type  = "SPOT"
   disk_size      = 20
-  instance_types = var.instance_types  # Multiple types for better spot availability
+  instance_types = var.instance_types
   labels = {
-    role = "nodes-group-1"
+    role = "eks-tf-node-group"
   }
 
   tags = {
